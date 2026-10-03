@@ -1,11 +1,12 @@
--- Carrega a biblioteca de interface visual Rayfield
+-- Carrega a biblioteca visual Rayfield
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
--- Cria a janela principal do Menu
+-- MENU COMPACTO E CLEAN (Tamanho reduzido para não ocupar a tela)
 local Window = Rayfield:CreateWindow({
-   Name = "Meu Hub | Mega Ramp",
-   LoadingTitle = "Iniciando Script...",
-   LoadingSubtitle = "Criado por Mim",
+   Name = "Auto Farm | Mega Ramp",
+   LoadingTitle = "Iniciando...",
+   LoadingSubtitle = "Versão Auto-Loop",
+   Size = UDim2.fromOffset(450, 320), -- Menu bem menor na tela
    ConfigurationSaving = { Enabled = false },
    KeySystem = false
 })
@@ -14,48 +15,72 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
 
--- ==========================================================
--- LOGICA DE VELOCIDADE E AUTOMAÇÃO
--- ==========================================================
-_G.SuperBoostRampa = false
-_G.VelocidadeRampa = 1800 -- Valor padrão
+-- VARIÁVEIS DE CONTROLE DO AUTO FARM
+_G.AutoFarmLoop = false
+_G.TempoEspera = 1.5 -- Tempo de espera entre os ciclos (segundos)
 
-local function acelerarVeiculoExtremo()
+-- ==========================================================
+-- FUNÇÕES DE AUTOMAÇÃO E LÓGICA DO JOGO
+-- ==========================================================
+
+-- 1. Procura e Teleporta para a plataforma de início (Quadrado com a Seta)
+local function entrarNaPlataformaInicio()
     local char = LocalPlayer.Character
-    if not char then return end
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
     
-    local rootPart = char:FindFirstChild("HumanoidRootPart")
-    local seat = char:FindFirstChildOfClass("Humanoid") and char.Humanoid.SeatPart
-    local alvoFisica = seat or rootPart
+    -- Busca partes com nomes comuns de início/spawn no jogo
+    local startPad = workspace:FindFirstChild("StartPad", true) 
+                     or workspace:FindFirstChild("SpawnRamp", true)
+                     or workspace:FindFirstChild("SpawnVehicle", true)
 
-    if alvoFisica then
-        -- Aplica o impulso na velocidade definida na barra do menu
-        alvoFisica.AssemblyLinearVelocity = alvoFisica.CFrame.LookVector * _G.VelocidadeRampa
+    if startPad then
+        char.HumanoidRootPart.CFrame = startPad.CFrame + Vector3.new(0, 3, 0)
     end
 end
 
--- Loop de velocidade continua em segundo plano
+-- 2. Teleporta com segurança até a Caixa/Final (Até o limite máximo)
+local function irAteOFinalEAbrirCaixa()
+    local char = LocalPlayer.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+
+    -- Procura o ponto da Caixa Final / Recompensa de 7M+
+    local chestOrFinish = workspace:FindFirstChild("Chest", true) 
+                          or workspace:FindFirstChild("FinishZone", true) 
+                          or workspace:FindFirstChild("EndPad", true)
+
+    if chestOrFinish then
+        -- Teleporta exatamente em cima da caixa para coletar/abrir
+        char.HumanoidRootPart.CFrame = chestOrFinish.CFrame + Vector3.new(0, 4, 0)
+    else
+        -- Caso não ache pelo nome, vai até o fim máximo da rampa por posição
+        char.HumanoidRootPart.CFrame = CFrame.new(0, 100, 10000) 
+    end
+    
+    -- Dispara evento de toque/interação caso a caixa precise de clique/toque
+    task.wait(0.5)
+    local rewardRemote = ReplicatedStorage:FindFirstChild("ClaimChest", true) or ReplicatedStorage:FindFirstChild("OpenChest", true)
+    if rewardRemote and rewardRemote:IsA("RemoteEvent") then
+        rewardRemote:FireServer()
+    end
+end
+
+-- 3. LOOP PRINCIPAL DE AUTO FARM AUTOMÁTICO
 task.spawn(function()
     while true do
-        task.wait(0.05)
-        if _G.SuperBoostRampa then
-            acelerarVeiculoExtremo()
+        task.wait(_G.TempoEspera)
+        if _G.AutoFarmLoop then
+            -- Passo A: Vai até o quadrado/seta da rampa
+            entrarNaPlataformaInicio()
+            task.wait(0.8)
+            
+            -- Passo B: Teleporta para o final supremo e abre a caixa
+            irAteOFinalEAbrirCaixa()
+            task.wait(1)
         end
     end
 end)
 
-local function equiparMelhorSlime()
-    local remote = ReplicatedStorage:FindFirstChild("EquipBest", true) 
-                   or ReplicatedStorage:FindFirstChild("EquipBestPets", true)
-                   or ReplicatedStorage:FindFirstChild("AutoEquip", true)
-
-    if remote and remote:IsA("RemoteFunction") then
-        remote:InvokeServer()
-    elseif remote and remote:IsA("RemoteEvent") then
-        remote:FireServer()
-    end
-end
-
+-- Function para checar o estoque de limitados
 local function checarEstoqueLimitados()
     local ugcFolder = ReplicatedStorage:FindFirstChild("UGCStock") or ReplicatedStorage:FindFirstChild("Limiteds")
     if ugcFolder then
@@ -67,40 +92,30 @@ local function checarEstoqueLimitados()
 end
 
 -- ==========================================================
--- INTERFACE VISUAL
+-- INTERFACE VISUAL (ABAS E BOTÕES)
 -- ==========================================================
 
--- ABA 1: Rampa e Slimes
-local TabRampa = Window:CreateTab("Rampa & Slimes", 4483362458)
+-- ABA 1: Auto Farm
+local TabFarm = Window:CreateTab("Auto Farm", 4483362458)
 
--- Botão Liga/Desliga a Velocidade
-TabRampa:CreateToggle({
-   Name = "Ativar Super Velocidade na Rampa",
+TabFarm:CreateToggle({
+   Name = "Ligar Auto Farm Infinito (Até o Final)",
    CurrentValue = false,
-   Flag = "ToggleFastRamp",
+   Flag = "ToggleAutoFarm",
    Callback = function(Value)
-      _G.SuperBoostRampa = Value
+      _G.AutoFarmLoop = Value
    end,
 })
 
--- Barra para controlar a intensidade do impulso
-TabRampa:CreateSlider({
-   Name = "Intensidade da Velocidade",
-   Range = {500, 4000},
-   Increment = 100,
-   Suffix = " Força",
-   CurrentValue = 1800,
-   Flag = "SliderVelocidade",
+TabFarm:CreateSlider({
+   Name = "Velocidade do Ciclo (Segundos)",
+   Range = {0.5, 5},
+   Increment = 0.5,
+   Suffix = " seg",
+   CurrentValue = 1.5,
+   Flag = "SliderTempo",
    Callback = function(Value)
-      _G.VelocidadeRampa = Value
-   end,
-})
-
--- Botão para Equipar o Melhor Slime
-TabRampa:CreateButton({
-   Name = "Equipar Melhor Slime",
-   Callback = function()
-      equiparMelhorSlime()
+      _G.TempoEspera = Value
    end,
 })
 
