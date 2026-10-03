@@ -1,154 +1,166 @@
--- Carrega a biblioteca visual Rayfield
+-- Script Auto Farm - Foco no Final da Rampa (Maior Multiplicador)
+
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
--- MENU COMPACTO E CLEAN
 local Window = Rayfield:CreateWindow({
-   Name = "Auto Farm | Mega Ramp",
-   LoadingTitle = "Iniciando...",
-   LoadingSubtitle = "Versão Final Corrigida",
-   Size = UDim2.fromOffset(450, 320),
-   ConfigurationSaving = { Enabled = false },
-   KeySystem = false
+   Name = "Auto Farm - Slime & Rampa",
+   LoadingTitle = "Carregando Script...",
+   LoadingSubtitle = "por Assistente",
+   ConfigurationSaving = {
+      Enabled = false
+   }
 })
 
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local LocalPlayer = Players.LocalPlayer
+local TabFarm = Window:CreateTab("Auto Farm", 4483362458)
 
--- VARIÁVEIS DE CONTROLE
-_G.AutoFarmLoop = false
-_G.TempoEspera = 1.5
+-- Variáveis de controle
+_G.AutoFarmAtivo = false
 
--- ==========================================================
--- FUNÇÕES DE BUSCA DINÂMICA NO MAPA
--- ==========================================================
+-- Função para encontrar a plataforma inicial da seta
+local function irParaSeta()
+    local player = game.Players.LocalPlayer
+    if not player or not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return false end
+    
+    local hrp = player.Character.HumanoidRootPart
+    
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("BasePart") or obj:IsA("Decal") or obj:IsA("Texture") then
+            local nome = string.lower(obj.Name)
+            local tex = (obj:IsA("Decal") or obj:IsA("Texture")) and string.lower(obj.Texture) or ""
+            
+            if string.find(nome, "seta") or string.find(nome, "arrow") or string.find(tex, "seta") or string.find(tex, "arrow") or string.find(nome, "spawn") then
+                local alvo = obj:IsA("BasePart") and obj or obj.Parent
+                if alvo and alvo:IsA("BasePart") then
+                    hrp.CFrame = alvo.CFrame + Vector3.new(0, 4, 0)
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
 
--- Função para achar o quadrado com a seta (Entrar no Carro)
-local function irParaQuadradoSeta()
-    local char = LocalPlayer.Character
-    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-
-    -- Procura no workspace por plataformas de Spawn/Seta
+-- Função para encontrar o FINAL da rampa colorida (Maior Multiplicador)
+local function irParaFinalDaRampa()
+    local player = game.Players.LocalPlayer
+    if not player or not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return end
+    
+    local hrp = player.Character.HumanoidRootPart
+    local alvoMaisLonge = nil
+    local maiorPosicaoZ = -math.huge
+    local menorPosicaoZ = math.huge
+    
+    -- Varre as partes do mapa procurando os blocos de multiplicador da rampa
     for _, obj in pairs(workspace:GetDescendants()) do
         if obj:IsA("BasePart") then
             local nome = string.lower(obj.Name)
-            if nome:find("arrow") or nome:find("seta") or nome:find("spawn") or nome:find("start") or nome:find("pad") then
-                -- Teleporta para cima da plataforma da seta
-                char.HumanoidRootPart.CFrame = obj.CFrame + Vector3.new(0, 3, 0)
-                return
-            end
-        end
-    end
-end
-
--- Função para ir até o Slime Gigante / Final da Rampa (Dentro dos limites)
-local function irParaFinalDaRampa()
-    local char = LocalPlayer.Character
-    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-
-    -- Procura o ponto final legítimo (Slime Gigante / Chest / Finish)
-    local pontoFinal = nil
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if obj:IsA("BasePart") or obj:IsA("Model") then
-            local nome = string.lower(obj.Name)
-            if nome:find("giant") or nome:find("chest") or nome:find("finish") or nome:find("end") or nome:find("caixa") or nome:find("win") then
-                pontoFinal = obj
-                break
-            end
-        end
-    end
-
-    if pontoFinal then
-        if pontoFinal:IsA("Model") then
-            char.HumanoidRootPart.CFrame = pontoFinal:GetPivot() + Vector3.new(0, 4, 0)
-        else
-            char.HumanoidRootPart.CFrame = pontoFinal.CFrame + Vector3.new(0, 4, 0)
-        end
-    end
-end
-
--- Função para Equipar o Melhor Slime
-local function equiparMelhorSlime()
-    local remote = ReplicatedStorage:FindFirstChild("EquipBest", true) 
-                   or ReplicatedStorage:FindFirstChild("EquipBestPets", true)
-                   or ReplicatedStorage:FindFirstChild("AutoEquip", true)
-
-    if remote and remote:IsA("RemoteFunction") then
-        remote:InvokeServer()
-    elseif remote and remote:IsA("RemoteEvent") then
-        remote:FireServer()
-    end
-end
-
--- Loop Principal Automático
-task.spawn(function()
-    while true do
-        task.wait(_G.TempoEspera)
-        if _G.AutoFarmLoop then
-            -- 1. Vai para o quadrado com a seta para entrar no carro
-            irParaQuadradoSeta()
-            task.wait(0.8)
             
-            -- 2. Teleporta para a zona do Slime Gigante no final da rampa
-            irParaFinalDaRampa()
-            task.wait(1)
+            -- Procura por partes da rampa / multiplicadores (ex: x1000000, multiplier, ramp, zone)
+            local ehRampa = string.find(nome, "multiplier") or string.find(nome, "rampa") or string.find(nome, "ramp") or string.find(nome, "multi") or string.find(nome, "zone") or string.find(nome, "finish") or string.find(nome, "win")
+            
+            -- Também verifica se há texto de multiplicador dentro do bloco
+            if not ehRampa then
+                for _, child in pairs(obj:GetChildren()) do
+                    if child:IsA("SurfaceGui") or child:IsA("BillboardGui") or child:IsA("TextLabel") then
+                        ehRampa = true
+                        break
+                    end
+                end
+            end
+            
+            if ehRampa then
+                -- Descobre o bloco mais distante no eixo de profundidade (fim da pista)
+                local distZ = math.abs(obj.Position.Z)
+                if distZ > maiorPosicaoZ then
+                    maiorPosicaoZ = distZ
+                    alvoMaisLonge = obj
+                end
+            end
         end
     end
-end)
 
--- Function para checar o estoque de limitados
-local function checarEstoqueLimitados()
-    local ugcFolder = ReplicatedStorage:FindFirstChild("UGCStock") or ReplicatedStorage:FindFirstChild("Limiteds")
-    if ugcFolder then
-        local estoque = ugcFolder:GetAttribute("Stock") or 0
-        return "Limitados Restantes: " .. tostring(estoque)
+    -- Teleporta para o bloco mais distante encontrado na pista (faixa final)
+    if alvoMaisLonge then
+        hrp.CFrame = alvoMaisLonge.CFrame + Vector3.new(0, 5, 0)
     else
-        return "Sem estoque detectado / Esgotado"
+        -- Fallback: Se não achar pelo nome, busca o ponto mais distante do centro
+        local blocoMaisDistante = nil
+        local maxDist = 0
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if obj:IsA("BasePart") and not string.find(string.lower(obj.Name), "slime") then
+                local dist = (obj.Position - Vector3.new(0, 0, 0)).Magnitude
+                if dist > maxDist and dist < 15000 then -- limita para não ir fora do mapa
+                    maxDist = dist
+                    blocoMaisDistante = obj
+                end
+            end
+        end
+        if blocoMaisDistante then
+            hrp.CFrame = blocoMaisDistante.CFrame + Vector3.new(0, 5, 0)
+        end
     end
 end
 
--- ==========================================================
--- INTERFACE VISUAL
--- ==========================================================
+-- Função para equipar melhor Slime/Pet
+local function equiparMelhorSlime()
+    local args = {
+        [1] = "EquipBest",
+        [2] = {}
+    }
+    local replicatedStorage = game:GetService("ReplicatedStorage")
+    
+    -- Procura os eventos remotos de Pet/Slime comuns
+    for _, child in pairs(replicatedStorage:GetDescendants()) do
+        if child:IsA("RemoteFunction") or child:IsA("RemoteEvent") then
+            local n = string.lower(child.Name)
+            if string.find(n, "equip") or string.find(n, "pet") or string.find(n, "slime") then
+                pcall(function()
+                    if child:IsA("RemoteFunction") then
+                        child:InvokeServer("EquipBest")
+                    else
+                        child:FireServer("EquipBest")
+                    end
+                end)
+            end
+        end
+    end
+end
 
--- ABA 1: Auto Farm
-local TabFarm = Window:CreateTab("Auto Farm", 4483362458)
-
-TabFarm:CreateToggle({
-   Name = "Ligar Auto Farm Infinito",
+-- Elementos da Interface (UI)
+local ToggleFarm = TabFarm:CreateToggle({
+   Name = "Auto Farm (Ir para Final da Rampa)",
    CurrentValue = false,
-   Flag = "ToggleAutoFarm",
+   Flag = "AutoFarmFlag",
    Callback = function(Value)
-      _G.AutoFarmLoop = Value
+      _G.AutoFarmAtivo = Value
+      
+      task.spawn(function()
+         while _G.AutoFarmAtivo do
+            -- 1. Vai até a seta inicial
+            irParaSeta()
+            task.wait(1.2) -- Tempo para entrar no veículo
+            
+            -- 2. Teleporta direto para a faixa do maior multiplicador no fim da rampa
+            if _G.AutoFarmAtivo then
+               irParaFinalDaRampa()
+               task.wait(2.5) -- Tempo para contabilizar o multiplicador/grana
+            end
+            
+            task.wait(0.5)
+         end
+      end)
    end,
 })
 
-TabFarm:CreateButton({
+local ButtonEquip = TabFarm:CreateButton({
    Name = "Equipar Melhor Slime",
    Callback = function()
       equiparMelhorSlime()
+      Rayfield:Notify({
+         Title = "Slimes",
+         Content = "Tentando equipar os melhores slimes!",
+         Duration = 3,
+         Image = 4483362458,
+      })
    end,
 })
-
-TabFarm:CreateSlider({
-   Name = "Velocidade do Ciclo (Segundos)",
-   Range = {0.5, 5},
-   Increment = 0.5,
-   Suffix = " seg",
-   CurrentValue = 1.5,
-   Flag = "SliderTempo",
-   Callback = function(Value)
-      _G.TempoEspera = Value
-   end,
-})
-
--- ABA 2: Limitados / UGC
-local TabUGC = Window:CreateTab("Limitados", 4483362458)
-
-local LabelLimitados = TabUGC:CreateLabel("Verificando estoque...")
-
-task.spawn(function()
-    while task.wait(5) do
-        LabelLimitados:Set(checarEstoqueLimitados())
-    end
-end)
