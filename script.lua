@@ -1,12 +1,12 @@
 -- Carrega a biblioteca visual Rayfield
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
--- MENU COMPACTO E CLEAN (Tamanho reduzido para não ocupar a tela)
+-- MENU COMPACTO E CLEAN
 local Window = Rayfield:CreateWindow({
    Name = "Auto Farm | Mega Ramp",
    LoadingTitle = "Iniciando...",
-   LoadingSubtitle = "Versão Auto-Loop",
-   Size = UDim2.fromOffset(450, 320), -- Menu bem menor na tela
+   LoadingSubtitle = "Versão Final Corrigida",
+   Size = UDim2.fromOffset(450, 320),
    ConfigurationSaving = { Enabled = false },
    KeySystem = false
 })
@@ -15,66 +15,82 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
 
--- VARIÁVEIS DE CONTROLE DO AUTO FARM
+-- VARIÁVEIS DE CONTROLE
 _G.AutoFarmLoop = false
-_G.TempoEspera = 1.5 -- Tempo de espera entre os ciclos (segundos)
+_G.TempoEspera = 1.5
 
 -- ==========================================================
--- FUNÇÕES DE AUTOMAÇÃO E LÓGICA DO JOGO
+-- FUNÇÕES DE BUSCA DINÂMICA NO MAPA
 -- ==========================================================
 
--- 1. Procura e Teleporta para a plataforma de início (Quadrado com a Seta)
-local function entrarNaPlataformaInicio()
-    local char = LocalPlayer.Character
-    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-    
-    -- Busca partes com nomes comuns de início/spawn no jogo
-    local startPad = workspace:FindFirstChild("StartPad", true) 
-                     or workspace:FindFirstChild("SpawnRamp", true)
-                     or workspace:FindFirstChild("SpawnVehicle", true)
-
-    if startPad then
-        char.HumanoidRootPart.CFrame = startPad.CFrame + Vector3.new(0, 3, 0)
-    end
-end
-
--- 2. Teleporta com segurança até a Caixa/Final (Até o limite máximo)
-local function irAteOFinalEAbrirCaixa()
+-- Função para achar o quadrado com a seta (Entrar no Carro)
+local function irParaQuadradoSeta()
     local char = LocalPlayer.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return end
 
-    -- Procura o ponto da Caixa Final / Recompensa de 7M+
-    local chestOrFinish = workspace:FindFirstChild("Chest", true) 
-                          or workspace:FindFirstChild("FinishZone", true) 
-                          or workspace:FindFirstChild("EndPad", true)
-
-    if chestOrFinish then
-        -- Teleporta exatamente em cima da caixa para coletar/abrir
-        char.HumanoidRootPart.CFrame = chestOrFinish.CFrame + Vector3.new(0, 4, 0)
-    else
-        -- Caso não ache pelo nome, vai até o fim máximo da rampa por posição
-        char.HumanoidRootPart.CFrame = CFrame.new(0, 100, 10000) 
-    end
-    
-    -- Dispara evento de toque/interação caso a caixa precise de clique/toque
-    task.wait(0.5)
-    local rewardRemote = ReplicatedStorage:FindFirstChild("ClaimChest", true) or ReplicatedStorage:FindFirstChild("OpenChest", true)
-    if rewardRemote and rewardRemote:IsA("RemoteEvent") then
-        rewardRemote:FireServer()
+    -- Procura no workspace por plataformas de Spawn/Seta
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            local nome = string.lower(obj.Name)
+            if nome:find("arrow") or nome:find("seta") or nome:find("spawn") or nome:find("start") or nome:find("pad") then
+                -- Teleporta para cima da plataforma da seta
+                char.HumanoidRootPart.CFrame = obj.CFrame + Vector3.new(0, 3, 0)
+                return
+            end
+        end
     end
 end
 
--- 3. LOOP PRINCIPAL DE AUTO FARM AUTOMÁTICO
+-- Função para ir até o Slime Gigante / Final da Rampa (Dentro dos limites)
+local function irParaFinalDaRampa()
+    local char = LocalPlayer.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+
+    -- Procura o ponto final legítimo (Slime Gigante / Chest / Finish)
+    local pontoFinal = nil
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("BasePart") or obj:IsA("Model") then
+            local nome = string.lower(obj.Name)
+            if nome:find("giant") or nome:find("chest") or nome:find("finish") or nome:find("end") or nome:find("caixa") or nome:find("win") then
+                pontoFinal = obj
+                break
+            end
+        end
+    end
+
+    if pontoFinal then
+        if pontoFinal:IsA("Model") then
+            char.HumanoidRootPart.CFrame = pontoFinal:GetPivot() + Vector3.new(0, 4, 0)
+        else
+            char.HumanoidRootPart.CFrame = pontoFinal.CFrame + Vector3.new(0, 4, 0)
+        end
+    end
+end
+
+-- Função para Equipar o Melhor Slime
+local function equiparMelhorSlime()
+    local remote = ReplicatedStorage:FindFirstChild("EquipBest", true) 
+                   or ReplicatedStorage:FindFirstChild("EquipBestPets", true)
+                   or ReplicatedStorage:FindFirstChild("AutoEquip", true)
+
+    if remote and remote:IsA("RemoteFunction") then
+        remote:InvokeServer()
+    elseif remote and remote:IsA("RemoteEvent") then
+        remote:FireServer()
+    end
+end
+
+-- Loop Principal Automático
 task.spawn(function()
     while true do
         task.wait(_G.TempoEspera)
         if _G.AutoFarmLoop then
-            -- Passo A: Vai até o quadrado/seta da rampa
-            entrarNaPlataformaInicio()
+            -- 1. Vai para o quadrado com a seta para entrar no carro
+            irParaQuadradoSeta()
             task.wait(0.8)
             
-            -- Passo B: Teleporta para o final supremo e abre a caixa
-            irAteOFinalEAbrirCaixa()
+            -- 2. Teleporta para a zona do Slime Gigante no final da rampa
+            irParaFinalDaRampa()
             task.wait(1)
         end
     end
@@ -92,18 +108,25 @@ local function checarEstoqueLimitados()
 end
 
 -- ==========================================================
--- INTERFACE VISUAL (ABAS E BOTÕES)
+-- INTERFACE VISUAL
 -- ==========================================================
 
 -- ABA 1: Auto Farm
 local TabFarm = Window:CreateTab("Auto Farm", 4483362458)
 
 TabFarm:CreateToggle({
-   Name = "Ligar Auto Farm Infinito (Até o Final)",
+   Name = "Ligar Auto Farm Infinito",
    CurrentValue = false,
    Flag = "ToggleAutoFarm",
    Callback = function(Value)
       _G.AutoFarmLoop = Value
+   end,
+})
+
+TabFarm:CreateButton({
+   Name = "Equipar Melhor Slime",
+   Callback = function()
+      equiparMelhorSlime()
    end,
 })
 
