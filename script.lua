@@ -1,10 +1,17 @@
--- Carrega a interface Rayfield
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+]-- Carrega a interface Rayfield
+local success, Rayfield = pcall(function()
+    return loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+end)
+
+if not success or not Rayfield then
+    warn("Falha ao carregar Rayfield UI")
+    return
+end
 
 local Window = Rayfield:CreateWindow({
    Name = "Auto Farm | Mega Ramp",
    LoadingTitle = "Iniciando...",
-   LoadingSubtitle = "Modo Velocidade Física Pro",
+   LoadingSubtitle = "Modo Velocidade Física",
    Size = UDim2.fromOffset(450, 320),
    ConfigurationSaving = { Enabled = false },
    KeySystem = false
@@ -16,7 +23,7 @@ local LocalPlayer = Players.LocalPlayer
 
 -- VARIÁVEIS DE CONTROLE
 _G.AutoFarmLoop = false
-_G.VelocidadeCarro = 300 -- Velocidade padrão ajustável (100x a 1200x)
+_G.VelocidadeCarro = 300
 _G.TempoEspera = 1.0
 
 -- 1. LOCALIZAR O STARTPAD (SETA CENTRAL)
@@ -33,7 +40,7 @@ local function obterStartPad()
             local nome = v.Name:lower()
             if nome == "startpad" or nome:find("arrow") or nome:find("seta") then
                 local dist = (v.Position - root.Position).Magnitude
-                if dist < menorDist:
+                if dist < menorDist then
                     menorDist = dist
                     melhorAlvo = v
                 end
@@ -43,31 +50,27 @@ local function obterStartPad()
     return melhorAlvo
 end
 
--- 2. ACELERAR E EMPURRAR O CARRO NA RAMPA COM VELOCIDADE REAL
+-- 2. APLICAR IMPULSO FÍSICO NO VEÍCULO
 local function impulsionarCarro()
     pcall(function()
         local char = LocalPlayer.Character
-        if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+        if not char then return end
         local humanoid = char:FindFirstChildOfClass("Humanoid")
         local assento = humanoid and humanoid.SeatPart
 
-        -- Se estiver no carro, aplica aceleração física no modelo
         if assento and assento.Parent then
             local carroModel = assento.Parent
             local mainPart = carroModel:FindFirstChild("PrimaryPart") or assento
 
-            -- Direção para a frente da rampa
-            local direcao = mainPart.CFrame.LookVector
-            
-            -- Aplica velocidade contínua no veículo para deslizar e pontuar
-            if mainPart:IsA("BasePart") then
+            if mainPart and mainPart:IsA("BasePart") then
+                local direcao = mainPart.CFrame.LookVector
                 mainPart.AssemblyLinearVelocity = direcao * _G.VelocidadeCarro
             end
         end
     end)
 end
 
--- LÓGICA DO CICLO COMPLETO
+-- 3. CICLO DE EXECUÇÃO
 local function executarCicloFarm()
     pcall(function()
         local char = LocalPlayer.Character
@@ -77,9 +80,9 @@ local function executarCicloFarm()
 
         local startPad = obterStartPad()
 
-        -- 1. Reposiciona na seta de largada
+        -- Teleporta para o início
         if startPad then
-            if humanoid.SeatPart and humanoid.SeatPart.Parent then
+            if humanoid and humanoid.SeatPart and humanoid.SeatPart.Parent then
                 humanoid.SeatPart.Parent:PivotTo(startPad.CFrame + Vector3.new(0, 3, 0))
             else
                 root.CFrame = startPad.CFrame + Vector3.new(0, 3, 0)
@@ -88,26 +91,12 @@ local function executarCicloFarm()
 
         task.wait(0.2)
 
-        -- 2. Dispara a aceleração de alta velocidade pela rampa abaixo
-        local tempoAcelerando = 0
-        while tempoAcelerando < 2.5 e _G.AutoFarmLoop do
+        -- Impulsiona o carro rampa abaixo
+        local contador = 0
+        while contador < 2.5 and _G.AutoFarmLoop do
             impulsionarCarro()
             task.wait(0.1)
-            tempoAcelerando = tempoAcelerando + 0.1
-        end
-    end)
-end
-
--- LÓGICA DO EQUIP BEST
-local function executarEquipBest()
-    pcall(function()
-        for _, remote in pairs(ReplicatedStorage:GetDescendants()) do
-            if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then
-                local n = remote.Name:lower()
-                if n:find("equip") or n:find("best") then
-                    if remote:IsA("RemoteEvent") then remote:FireServer() else remote:InvokeServer() end
-                end
-            end
+            contador = contador + 0.1
         end
     end)
 end
@@ -122,13 +111,11 @@ task.spawn(function()
     end
 end)
 
--- ==========================================
--- INTERFACE VISUAL (RAYFIELD)
--- ==========================================
+-- INTERFACE VISUAL
 local TabFarm = Window:CreateTab("Auto Farm", 4483362458)
 
 TabFarm:CreateToggle({
-   Name = "Ligar Auto Farm com Aceleração",
+   Name = "Ligar Auto Farm Aceleração",
    CurrentValue = false,
    Flag = "ToggleAutoFarm",
    Callback = function(Value)
@@ -137,7 +124,7 @@ TabFarm:CreateToggle({
 })
 
 TabFarm:CreateSlider({
-   Name = "Velocidade do Carro na Rampa",
+   Name = "Velocidade do Carro",
    Range = {100, 1200},
    Increment = 50,
    Suffix = "x Vel",
@@ -149,7 +136,7 @@ TabFarm:CreateSlider({
 })
 
 TabFarm:CreateSlider({
-   Name = "Intervalo de Reinício (Segundos)",
+   Name = "Intervalo do Ciclo",
    Range = {0.5, 4.0},
    Increment = 0.1,
    Suffix = " seg",
@@ -165,11 +152,15 @@ local TabSlime = Window:CreateTab("Slimes & Pets", 4483362458)
 TabSlime:CreateButton({
    Name = "Equipar Melhor Slime",
    Callback = function()
-      executarEquipBest()
-      Rayfield:Notify({
-         Title = "Equipar Melhor",
-         Content = "Comando de equipar enviado!",
-         Duration = 3
-      })
+      pcall(function()
+          for _, remote in pairs(ReplicatedStorage:GetDescendants()) do
+              if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then
+                  local n = remote.Name:lower()
+                  if n:find("equip") or n:find("best") then
+                      if remote:IsA("RemoteEvent") then remote:FireServer() else remote:InvokeServer() end
+                  end
+              end
+          end
+      end)
    end,
 })
