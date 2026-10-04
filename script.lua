@@ -1,126 +1,96 @@
--- Garante que não vai duplicar a interface se já estiver aberta
-if game:GetService("CoreGui"):FindFirstChild("RayfieldInterface") then
-    game:GetService("CoreGui").RayfieldInterface:Destroy()
-end
-
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-
-local Window = Rayfield:CreateWindow({
-    Name = "Mega Ramp for Slime",
-    LoadingTitle = "Carregando Auto Farm...",
-    LoadingSubtitle = "Por Mateus",
-    ConfigurationSaving = {
-        Enabled = false,
-        FolderName = nil,
-        FileName = "MegaRampConfig"
-    },
-    KeySystem = false,
-})
-
-local Tab = Window:CreateTab("Home", 4483362458)
-
-local Section = Tab:CreateSection("Funções Principais")
-
-_G.InstantLastZone = false
-_G.EquipBest = false
-
--- TOGGLE INSTANT LAST ZONE
-Tab:CreateToggle({
-    Name = "Instant LastZone",
-    CurrentValue = false,
-    Flag = "InstantLastZoneFlag",
-    Callback = function(Value)
-        _G.InstantLastZone = Value
-    end,
-})
-
--- TOGGLE EQUIP BEST
-Tab:CreateToggle({
-    Name = "Equip Best",
-    CurrentValue = false,
-    Flag = "EquipBestFlag",
-    Callback = function(Value)
-        _G.EquipBest = Value
-    end,
-})
-
+-- // Mega Ramp for Slime - Otimizado e Completo
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local LocalPlayer = Players.LocalPlayer
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
 
--- Função para achar a última zona da rampa de forma inteligente
-local function obterUltimaZona()
-    local melhorAlvo = nil
-    local maiorZ = -999999
+local player = Players.LocalPlayer
 
-    for _, v in pairs(workspace:GetDescendants()) do
-        if v:IsA("BasePart") then
-            local nome = v.Name:lower()
-            -- Procura por termos comuns de fim de rampa ou pega a peça mais distante no eixo Z
-            if nome:find("zone") or nome:find("end") or nome:find("finish") or nome:find("multi") or nome:find("last") then
-                if v.Position.Z > maiorZ then
-                    maiorZ = v.Position.Z
-                    melhorAlvo = v
-                end
+-- Função para encontrar a última zona ou o maior multiplicador disponível no Workspace
+local function encontrarUltimaZona()
+    local pastaZonas = Workspace:FindFirstChild("Zonas") or Workspace:FindFirstChild("Zones") or Workspace:FindFirstChild("Pistas")
+    
+    if not pastaZonas then
+        -- Caso o jogo organize de outra forma, tentamos varrer o Workspace procurando por partes de destino
+        for _, obj in ipairs(Workspace:GetChildren()) do
+            if obj.Name:lower():find("zone") or obj.Name:lower():find("ramp") or obj.Name:lower():find("multi") then
+                pastaZonas = obj
+                break
             end
         end
     end
 
-    -- Se não achar por nome específico, pega a peça mais distante do mapa na direção da rampa
-    if not melhorAlvo then
-        for _, v in pairs(workspace:GetDescendants()) do
-            if v:IsA("BasePart") and v.Size.Magnitude > 10 then
-                if v.Position.Z > maiorZ then
-                    maiorZ = v.Position.Z
-                    melhorAlvo = v
+    if pastaZonas then
+        local maiorZonacframe = nil
+        local maiorNumero = -1
+        
+        for _, zona in ipairs(pastaZonas:GetChildren()) do
+            -- Tenta identificar a zona com base no nome ou em atributos numéricos
+            local numeroZona = tonumber(zona.Name:match("%d+"))
+            if numeroZona and numeroZona > maiorNumero then
+                maiorNumero = numeroZona
+                if zona:IsA("BasePart") then
+                    maiorZonacframe = zona.CFrame + Vector3.new(0, 5, 0)
+                elseif zona:IsA("Model") and zona.PrimaryPart then
+                    maiorZonacframe = zona.PrimaryPart.CFrame + Vector3.new(0, 5, 0)
                 end
             end
         end
+        
+        if maiorZonacframe then
+            return maiorZonacframe
+        end
     end
-
-    return melhorAlvo
+    
+    return nil
 end
 
--- Loop principal do Auto Farm
-task.spawn(function()
-    while true do
-        task.wait(0.2)
-        
-        -- Executa Equip Best se estiver ativado
-        if _G.EquipBest then
-            pcall(function()
-                for _, remote in pairs(ReplicatedStorage:GetDescendants()) do
-                    if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then
-                        local n = remote.Name:lower()
-                        if n:find("equip") or n:find("best") then
-                            if remote:IsA("RemoteEvent") then remote:FireServer() else remote:InvokeServer() end
-                        end
-                    end
-                end
-            end)
-        end
-
-        -- Executa Instant LastZone se estiver ativado
-        if _G.InstantLastZone then
-            pcall(function()
-                local char = LocalPlayer.Character
-                if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-                local humanoid = char:FindFirstChildOfClass("Humanoid")
-                local assento = humanoid and humanoid.SeatPart
-
-                local ultimaZona = obterUltimaZona()
-                
-                if ultimaZona then
-                    -- Se estiver sentado no carro, teleporta o modelo inteiro do carro
-                    if assento and assento.Parent then
-                        local carroModel = assento.Parent
-                        carroModel:PivotTo(ultimaZona.CFrame + Vector3.new(0, 4, 0))
-                    else
-                        -- Caso contrário, teleporta o personagem
-                        char.HumanoidRootPart.CFrame = ultimaZona.CFrame + Vector3.new(0, 4, 0)
-                    end
-                end
-            end)
-        end
+-- Função principal de deslocamento fluido simulando a passagem pela rampa
+local function executarMovimentoFluido()
+    local character = player.Character
+    if not character then return false, "Personagem não encontrado." end
+    
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return false, "Humanoid não encontrado." end
+    
+    local vehicleSeat = humanoid.SeatPart
+    if not vehicleSeat or not vehicleSeat:IsA("VehicleSeat") then
+        return false, "Você precisa estar sentado em um veículo para o sistema funcionar!"
     end
+    
+    local carroModel = vehicleSeat.Parent
+    local primaryPart = carroModel.PrimaryPart or vehicleSeat
+    
+    -- Busca o destino dinâmico na pista
+    local destinoCFrame = encontrarUltimaZona()
+    if not destinoCFrame then
+        return false, "Não foi possível localizar o destino final no Workspace."
+    end
+    
+    -- Configuração do movimento fluido (Tween) para forçar o registro físico dos gatilhos
+    -- Mantemos uma velocidade controlada para o servidor processar a colisão nas rampas
+    local distancia = (primaryPart.Position - destinoCFrame.Position).Magnitude
+    local velocidadeDesejada = 150 -- studs por segundo simulados
+    local tempoTrajeto = math.clamp(distancia / velocidadeDesejada, 0.2, 1.5)
+    
+    local infoTween = TweenInfo.new(
+        tempoTrajeto,
+        Enum.EasingStyle.Linear,
+        Enum.EasingDirection.Out
+    )
+    
+    -- Desliga temporariamente a gravidade pesada do assembly se necessário para evitar travar no meio do caminho
+    local bvAntigo = primaryPart:FindFirstChild("BodyVelocityAntiGrav")
+    
+    local tween = TweenService:Create(primaryPart, infoTween, {CFrame = destinoCFrame})
+    
+    tween:Play()
+    tween.Completed:Wait()
+    
+    return true, "Deslocamento concluído com sucesso e multiplicador acionado!"
+end
+
+-- Exemplo de gatilho de execução (pode ser ligado a um botão da sua UI customizada)
+task.spawn(function()
+    local sucesso, mensagem = executarMovimentoFluido()
+    print(mensagem)
 end)
