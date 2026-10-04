@@ -3,8 +3,8 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
    Name = "Auto Farm | Mega Ramp",
-   LoadingTitle = "Iniciando Script...",
-   LoadingSubtitle = "Versão Estável e Rápida",
+   LoadingTitle = "Carregando Script...",
+   LoadingSubtitle = "Versão Teleporte Rápido",
    Size = UDim2.fromOffset(450, 320),
    ConfigurationSaving = { Enabled = false },
    KeySystem = false
@@ -18,7 +18,7 @@ local LocalPlayer = Players.LocalPlayer
 _G.AutoFarmLoop = false
 _G.TempoEspera = 1.0
 
--- TELEPORTE PARA A SETA (INÍCIO)
+-- FUNÇÃO 1: Teleportar EXATAMENTE para o quadrado da seta (Início)
 local function teleportarParaSeta()
     pcall(function()
         local char = LocalPlayer.Character
@@ -26,20 +26,25 @@ local function teleportarParaSeta()
         local root = char:FindFirstChild("HumanoidRootPart")
         if not root then return end
 
-        -- Procura parte de início no workspace
         for _, v in pairs(workspace:GetDescendants()) do
-            if v:IsA("BasePart") then
-                local n = string.lower(v.Name)
-                if n:find("arrow") or n:find("seta") or n:find("spawn") or n:find("start") then
-                    root.CFrame = v.CFrame + Vector3.new(0, 3, 0)
-                    return
+            if v:IsA("BasePart") or v:IsA("Decal") or v:IsA("Texture") then
+                local nome = string.lower(v.Name)
+                local tex = (v:IsA("Texture") or v:IsA("Decal")) and string.lower(v.Texture) or ""
+                
+                -- Procura a seta do início
+                if nome:find("arrow") or nome:find("seta") or tex:find("arrow") or tex:find("seta") or nome:find("start") or nome:find("spawn") then
+                    local alvo = v:IsA("BasePart") and v or v.Parent
+                    if alvo and alvo:IsA("BasePart") then
+                        root.CFrame = alvo.CFrame + Vector3.new(0, 3, 0)
+                        return
+                    end
                 end
             end
         end
     end)
 end
 
--- TELEPORTE PARA O FINAL DA RAMPA
+-- FUNÇÃO 2: Teleportar para o FINAL da rampa (Carro + Boneco)
 local function teleportarParaFinal()
     pcall(function()
         local char = LocalPlayer.Character
@@ -50,14 +55,16 @@ local function teleportarParaFinal()
         local humanoid = char:FindFirstChildOfClass("Humanoid")
         local assento = humanoid and humanoid.SeatPart
 
-        -- Procura o maior multiplicador
+        -- Procura o bloco de chegada no final da rampa
         for _, v in pairs(workspace:GetDescendants()) do
             if v:IsA("BasePart") then
-                local n = string.lower(v.Name)
-                if n:find("500000") or n:find("1000000") or n:find("finish") or n:find("end") or n:find("winner") then
+                local nome = string.lower(v.Name)
+                if nome:find("finish") or nome:find("end") or nome:find("winner") or nome:find("500000") or nome:find("1000000") or nome:find("x10") then
+                    -- Se estiver sentado no carro, teleporta o carro todo!
                     if assento and assento.Parent and assento.Parent:IsA("Model") then
                         assento.Parent:PivotTo(v.CFrame + Vector3.new(0, 5, 0))
                     else
+                        -- Se estiver a pé, teleporta só o boneco
                         root.CFrame = v.CFrame + Vector3.new(0, 5, 0)
                     end
                     return
@@ -67,13 +74,16 @@ local function teleportarParaFinal()
     end)
 end
 
--- LOOP DO AUTO FARM
+-- LOOP PRINCIPAL DO AUTO FARM
 task.spawn(function()
     while true do
         task.wait(_G.TempoEspera)
         if _G.AutoFarmLoop then
+            -- 1. Vai no quadrado da seta
             teleportarParaSeta()
             task.wait(0.3)
+            
+            -- 2. Vai para o final da rampa
             teleportarParaFinal()
         end
     end
@@ -103,14 +113,14 @@ TabFarm:CreateSlider({
    end,
 })
 
-local TabUGC = Window:CreateTab("Limitados", 4483362458)
+local TabUGC = Window:CreateTab("Notificações", 4483362458)
 
 TabUGC:CreateButton({
-   Name = "Checar Slime Raro / Notificação",
+   Name = "Testar Notificação",
    Callback = function()
       Rayfield:Notify({
          Title = "Sistema de Notificação",
-         Content = "Notificações ativas e funcionando!",
+         Content = "Notificações ativas e funcionando perfeitamente!",
          Duration = 4
       })
    end,
