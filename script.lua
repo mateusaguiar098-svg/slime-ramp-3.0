@@ -4,7 +4,7 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
    Name = "Auto Farm | Mega Ramp",
    LoadingTitle = "Iniciando...",
-   LoadingSubtitle = "Teleporte Direto pela Rampa Central",
+   LoadingSubtitle = "Rastreamento da Rampa Central",
    Size = UDim2.fromOffset(450, 320),
    ConfigurationSaving = { Enabled = false },
    KeySystem = false
@@ -18,35 +18,35 @@ local LocalPlayer = Players.LocalPlayer
 _G.AutoFarmLoop = false
 _G.TempoEspera = 0.5
 
--- 1. LOCALIZAR A SETA DE LARGADA (ÁREA CENTRAL)
-local function obterSetaCentral()
+-- 1. LOCALIZAR O QUADRADO BRANCO DA SETA NA PRAÇA CENTRAL
+local function obterQuadradoSetaCentral()
     local char = LocalPlayer.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return nil end
     local root = char.HumanoidRootPart
 
-    local melhorAlvo = nil
+    local alvoSeta = nil
     local menorDistancia = 9999
 
+    -- Procura no workspace geral pelo quadrado da seta perto das barracas
     for _, v in pairs(workspace:GetDescendants()) do
         if v:IsA("BasePart") then
             local nome = v.Name:lower()
-            -- Busca direta por StartPad ou peças com textura de seta/arrow
+            -- Busca por StartPad ou partes que contenham o decalque/textura da seta preta
             if nome == "startpad" or nome:find("arrow") or nome:find("seta") then
                 local dist = (v.Position - root.Position).Magnitude
                 if dist < menorDistancia then
                     menorDistancia = dist
-                    melhorAlvo = v
+                    alvoSeta = v
                 end
             end
         end
     end
-    return melhorAlvo
+    return alvoSeta
 end
 
--- 2. LOCALIZAR O FINAL ABSOLUTO DA RAMPA (MAIOR MULTIPLICADOR)
-local function obterFinalRampa()
+-- 2. LOCALIZAR O PONTO FINAL DA RAMPA (MAIOR MULTIPLICADOR)
+local function obterFinalRampaCentral()
     local pontoFinal = nil
-    local maiorVal = -1
 
     for _, v in pairs(workspace:GetDescendants()) do
         if v:IsA("BasePart") then
@@ -61,29 +61,29 @@ local function obterFinalRampa()
     return pontoFinal
 end
 
--- LÓGICA DE TELEPORTE INSTANTÂNEO
-local function executarTeleporteRampa()
+-- LÓGICA DE TELEPORTE
+local function executarTeleporteCentrado()
     pcall(function()
         local char = LocalPlayer.Character
         if not char or not char:FindFirstChild("HumanoidRootPart") then return end
         local root = char.HumanoidRootPart
         local humanoid = char:FindFirstChildOfClass("Humanoid")
 
-        local seta = obterSetaCentral()
-        local finalRampa = obterFinalRampa()
+        local setaCentral = obterQuadradoSetaCentral()
+        local finalRampa = obterFinalRampaCentral()
 
-        -- 1. Posiciona na Seta Central de Largada
-        if seta then
+        -- Passo A: Move para a seta preta no quadrado branco central
+        if setaCentral then
             if humanoid.SeatPart and humanoid.SeatPart.Parent then
-                humanoid.SeatPart.Parent:PivotTo(seta.CFrame + Vector3.new(0, 3, 0))
+                humanoid.SeatPart.Parent:PivotTo(setaCentral.CFrame + Vector3.new(0, 3, 0))
             else
-                root.CFrame = seta.CFrame + Vector3.new(0, 3, 0)
+                root.CFrame = setaCentral.CFrame + Vector3.new(0, 3, 0)
             end
         end
 
         task.wait(0.15)
 
-        -- 2. Dispara o teleporte instantâneo para o Final da Rampa
+        -- Passo B: Teleporta direto para o final da rampa
         if finalRampa then
             local assento = humanoid and humanoid.SeatPart
             if assento and assento.Parent and assento.Parent:IsA("Model") then
@@ -100,7 +100,7 @@ task.spawn(function()
     while true do
         task.wait(_G.TempoEspera)
         if _G.AutoFarmLoop then
-            executarTeleporteRampa()
+            executarTeleporteCentrado()
         end
     end
 end)
