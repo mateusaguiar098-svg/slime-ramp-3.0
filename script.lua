@@ -11,7 +11,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
 
--- CRIANDO INTERFACE NATIVA NA TELA (ESTILO TORA ISME)
+-- CRIANDO INTERFACE NATIVA NA TELA
 local ScreenGui = Instance.new("ScreenGui")
 local MainFrame = Instance.new("Frame")
 local Title = Instance.new("TextLabel")
@@ -49,7 +49,7 @@ ToggleLastZone.Size = UDim2.new(0.9, 0, 0, 40)
 ToggleLastZone.Font = Enum.Font.SourceSansBold
 ToggleLastZone.Text = "Instant LastZone: [ OFF ]"
 ToggleLastZone.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleLastZone.TextSize, ToggleLastZone.AutoButtonColor = 14, true
+ToggleLastZone.TextSize = 14
 
 ToggleLastZone.MouseButton1Click:Connect(function()
     _G.InstantLastZone = not _G.InstantLastZone
@@ -84,28 +84,27 @@ ToggleEquip.MouseButton1Click:Connect(function()
     end
 end)
 
--- CRÉDITOS
 CreditLabel.Parent = MainFrame
 CreditLabel.Position = UDim2.new(0.05, 0, 0.82, 0)
 CreditLabel.Size = UDim2.new(0.9, 0, 0, 20)
 CreditLabel.Font = Enum.Font.SourceSansItalic
-CreditLabel.Text = "YouTube: Mateus / Baseado no Tora IsMe"
+CreditLabel.Text = "Corrigido - Fim da Rampa"
 CreditLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
 CreditLabel.TextSize = 12
 
 -- ==========================================
--- BUSCAR A ÚLTIMA ZONA (FINAL DA RAMPA)
+-- PROCURAR APENAS OS BLOCOS DE MULTIPLICADOR DA PISTA
 -- ==========================================
-local function obterUltimaZona()
+local function obterFimDaPista()
     local melhorAlvo = nil
     local maiorZ = -999999
 
     for _, v in pairs(workspace:GetDescendants()) do
         if v:IsA("BasePart") then
             local nome = v.Name:lower()
-            -- Procura por peças no final da rampa (maior distância/posição Z ou blocos de pontuação máxima)
-            if nome:find("zone") or nome:find("end") or nome:find("finish") or nome:find("multi") or v.Position.Z > maiorZ then
-                if v.Position.Z > maiorZ then
+            -- Busca blocos da rampa que contenham números de multiplicador (ex: x1000, x50000) ou blocos coloridos finais
+            if nome:find("x") or nome:find("ramp") or nome:find("track") or nome:find("mult") then
+                if v.Position.Z > maiorZ and v.Position.Y > 0 and v.Position.Y < 50 then -- Filtra para não pegar o teto nem o slime alto
                     maiorZ = v.Position.Z
                     melhorAlvo = v
                 end
@@ -116,13 +115,12 @@ local function obterUltimaZona()
 end
 
 -- ==========================================
--- LOOP PRINCIPAL DO INSTANT LASTZONE & EQUIP BEST
+-- LOOP PRINCIPAL
 -- ==========================================
 task.spawn(function()
     while true do
-        task.wait(0.2)
+        task.wait(0.3)
         
-        -- Equip Best Automático se ativado
         if _G.EquipBest then
             pcall(function()
                 for _, remote in pairs(ReplicatedStorage:GetDescendants()) do
@@ -136,7 +134,6 @@ task.spawn(function()
             end)
         end
 
-        -- Instant LastZone
         if _G.InstantLastZone then
             pcall(function()
                 local char = LocalPlayer.Character
@@ -144,15 +141,14 @@ task.spawn(function()
                 local humanoid = char:FindFirstChildOfClass("Humanoid")
                 local assento = humanoid and humanoid.SeatPart
 
-                -- Localiza o ponto final da rampa (LastZone)
-                local ultimaZona = obterUltimaZona()
+                local fimPista = obterFimDaPista()
                 
-                if ultimaZona and assento and assento.Parent then
+                if fimPista and assento and assento.Parent then
                     local carroModel = assento.Parent
-                    -- Teleporta o carro instantaneamente para a última zona recolhendo a pontuação máxima
-                    carroModel:PivotTo(ultimaZona.CFrame + Vector3.new(0, 5, 0))
-                elseif ultimaZona then
-                    char.HumanoidRootPart.CFrame = ultimaZona.CFrame + Vector3.new(0, 5, 0)
+                    -- Teleporta para o último bloco da pista, mas mantendo a altura correta (acima da pista, longe do slime)
+                    carroModel:PivotTo(fimPista.CFrame + Vector3.new(0, 4, -10))
+                elseif fimPista then
+                    char.HumanoidRootPart.CFrame = fimPista.CFrame + Vector3.new(0, 4, -10)
                 end
             end)
         end
