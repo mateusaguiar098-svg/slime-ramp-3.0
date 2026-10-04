@@ -4,7 +4,7 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
    Name = "Auto Farm | Mega Ramp",
    LoadingTitle = "Iniciando...",
-   LoadingSubtitle = "Versão por Distância (Sem Bugs)",
+   LoadingSubtitle = "Foco TOTAL na Seta",
    Size = UDim2.fromOffset(450, 320),
    ConfigurationSaving = { Enabled = false },
    KeySystem = false
@@ -13,24 +13,35 @@ local Window = Rayfield:CreateWindow({
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
--- VARIÁVEIS DE CONTROLE
 _G.AutoFarmLoop = false
 _G.TempoEspera = 1.0
 
--- 1. TELEPORTE PELA SETA MAIS PRÓXIMA DO JOGADOR
+-- 1. TELEPORTE EXCLUSIVO PARA O DESENHO DA SETA
 local function irParaSeta()
     local char = LocalPlayer.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return end
     local root = char.HumanoidRootPart
 
     local alvo = nil
-    local menorDistancia = 500 -- Procura num raio de 500 blocos
+    local menorDistancia = 500 
 
     for _, v in pairs(workspace:GetDescendants()) do
         if v:IsA("BasePart") then
+            local temSeta = false
+            
+            -- Procura se a peça tem a imagem/textura de uma seta grudada nela
+            for _, filho in pairs(v:GetChildren()) do
+                if filho:IsA("Decal") or filho:IsA("Texture") then
+                    local tex = string.lower(filho.Texture)
+                    if tex:find("arrow") or tex:find("seta") then
+                        temSeta = true
+                    end
+                end
+            end
+
             local nome = v.Name:lower()
-            -- Se tiver nome de inicio/seta ou textura/decal
-            if nome:find("start") or nome:find("spawn") or nome:find("arrow") or nome:find("seta") then
+            -- SÓ ACEITA se tiver a textura da seta OU o nome exato da rampa (StartPad). Ignora Spawns da base!
+            if temSeta or nome == "startpad" or nome:find("arrow") then
                 local dist = (v.Position - root.Position).Magnitude
                 if dist < menorDistancia then
                     menorDistancia = dist
@@ -41,11 +52,12 @@ local function irParaSeta()
     end
 
     if alvo then
+        -- Teleporta bem em cima do quadrado da seta
         root.CFrame = alvo.CFrame + Vector3.new(0, 3, 0)
     end
 end
 
--- 2. TELEPORTE PARA O FINAL DA RAMPA (CARRO + BONECO)
+-- 2. TELEPORTE PARA O FINAL DA RAMPA (COM O CARRO)
 local function irParaFinal()
     local char = LocalPlayer.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return end
@@ -61,7 +73,6 @@ local function irParaFinal()
         if v:IsA("BasePart") or v:IsA("TextLabel") or v:IsA("SurfaceGui") then
             local texto = v:IsA("TextLabel") and v.Text or v.Name
             
-            -- Busca o bloco do multiplicador mais alto
             local nStr = texto:lower():match("x%s*(%d+)")
             if nStr then
                 local val = tonumber(nStr)
@@ -70,19 +81,14 @@ local function irParaFinal()
                     alvoFinal = v:IsA("BasePart") and v or v.Parent
                 end
             end
-            
-            -- Fallback
-            if texto:lower():find("finish") or texto:lower():find("endpad") then
-                alvoFinal = v:IsA("BasePart") and v or v.Parent
-            end
         end
     end
 
     if alvoFinal and alvoFinal:IsA("BasePart") then
         if assento and assento.Parent and assento.Parent:IsA("Model") then
-            assento.Parent:PivotTo(alvoFinal.CFrame + Vector3.new(0, 5, 0))
+            assento.Parent:PivotTo(alvoFinal.CFrame + Vector3.new(0, 4, 0))
         else
-            root.CFrame = alvoFinal.CFrame + Vector3.new(0, 5, 0)
+            root.CFrame = alvoFinal.CFrame + Vector3.new(0, 4, 0)
         end
     end
 end
@@ -93,19 +99,19 @@ task.spawn(function()
         task.wait(_G.TempoEspera)
         if _G.AutoFarmLoop then
             irParaSeta()
-            task.wait(0.5) -- Pausa pra você entrar no carro
+            task.wait(0.5) -- Pausa rápida para o carro nascer e você sentar
             irParaFinal()
         end
     end
 end)
 
 -- ==========================================
--- INTERFACE VISUAL (TUDO EM UMA ABA SÓ)
+-- INTERFACE VISUAL
 -- ==========================================
 local TabPrincipal = Window:CreateTab("Principal", 4483362458)
 
 TabPrincipal:CreateToggle({
-   Name = "Ligar Auto Farm Infinito",
+   Name = "Ligar Auto Farm",
    CurrentValue = false,
    Flag = "ToggleAutoFarm",
    Callback = function(Value)
@@ -114,7 +120,7 @@ TabPrincipal:CreateToggle({
 })
 
 TabPrincipal:CreateSlider({
-   Name = "Velocidade do Ciclo (Segundos)",
+   Name = "Velocidade (Segundos)",
    Range = {0.3, 3},
    Increment = 0.1,
    Suffix = " seg",
@@ -141,7 +147,7 @@ TabPrincipal:CreateButton({
       end)
       Rayfield:Notify({
          Title = "Sucesso!",
-         Content = "Os melhores Slimes foram equipados.",
+         Content = "Melhores Slimes equipados.",
          Duration = 3
       })
    end,
