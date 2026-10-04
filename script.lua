@@ -5,7 +5,7 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
    Name = "Auto Farm | Mega Ramp",
    LoadingTitle = "Iniciando...",
-   LoadingSubtitle = "Versão Final com Notificador",
+   LoadingSubtitle = "Versão Teleporte Direto",
    Size = UDim2.fromOffset(450, 320),
    ConfigurationSaving = { Enabled = false },
    KeySystem = false
@@ -17,60 +17,48 @@ local LocalPlayer = Players.LocalPlayer
 
 -- VARIÁVEIS DE CONTROLE
 _G.AutoFarmLoop = false
-_G.TempoEspera = 1.2
+_G.TempoEspera = 1.0
 local jaNotificouRaro = false
 
 -- ==========================================================
--- FUNÇÕES DE AUTOMAÇÃO E MOVIMENTAÇÃO
+-- FUNÇÕES DE TELEPORTE DIRETO E SEM TRAVAS
 -- ==========================================================
 
--- 1. Vai até a seta e garante que o jogador sentou no carro
-local function entrarNoCarroPelaSeta()
+-- 1. Teleporta direto para o quadrado branco com a seta
+local function irParaSetaInício()
     local char = LocalPlayer.Character
-    if not char or not char:FindFirstChild("HumanoidRootPart") then return false end
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
 
-    -- Procura o quadrado com a seta no spawn/base
+    -- Procura a seta ou o spawn principal no mapa
     for _, obj in pairs(workspace:GetDescendants()) do
         if obj:IsA("BasePart") or obj:IsA("Decal") or obj:IsA("Texture") then
             local nome = string.lower(obj.Name)
-            local texture = (obj:IsA("Texture") or obj:IsA("Decal")) and string.lower(obj.Texture) or ""
+            local tex = (obj:IsA("Texture") or obj:IsA("Decal")) and string.lower(obj.Texture) or ""
             
-            if nome:find("arrow") or nome:find("seta") or texture:find("arrow") or texture:find("seta") then
-                local targetPart = obj:IsA("BasePart") and obj or obj.Parent
-                if targetPart and targetPart:IsA("BasePart") then
-                    char.HumanoidRootPart.CFrame = targetPart.CFrame + Vector3.new(0, 3, 0)
-                    break
+            if nome:find("arrow") or nome:find("seta") or tex:find("arrow") or tex:find("seta") or nome:find("start") then
+                local parteAlvo = obj:IsA("BasePart") and obj or obj.Parent
+                if parteAlvo and parteAlvo:IsA("BasePart") then
+                    root.CFrame = parteAlvo.CFrame + Vector3.new(0, 3, 0)
+                    return
                 end
             end
         end
     end
-
-    -- Espera 1 segundo para o jogo spawnar o veículo e o jogador sentar no banco
-    task.wait(1)
-    
-    -- Retorna verdadeiro se estiver em um veículo ou pronto
-    local humanoid = char:FindFirstChildOfClass("Humanoid")
-    return humanoid and humanoid.SeatPart ~= nil
 end
 
--- 2. Teleporta o Carro + Jogador para a ÚLTIMA FAIXA de multiplicador (Antes do Slime/Barreira)
-local function teleportarParaFinalRampa()
+-- 2. Teleporta direto para a última faixa de multiplicador no final da rampa
+local function irParaFinalRampa()
     local char = LocalPlayer.Character
     if not char then return end
-
-    local rootPart = char:FindFirstChild("HumanoidRootPart")
-    local humanoid = char:FindFirstChildOfClass("Humanoid")
-    
-    -- Identifica se estamos no banco do carro para mover o carro junto
-    local assentoCarro = humanoid and humanoid.SeatPart
-    local parteParaMover = assentoCarro and assentoCarro.Parent:FindFirstChild("PrimaryPart") or assentoCarro or rootPart
-
-    if not parteParaMover then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
 
     local melhorBloco = nil
     local maiorMultiplicador = -1
 
-    -- Busca a faixa com o maior multiplicador de todos na rampa (ex: x1000000, x10M, etc.)
+    -- Procura as faixas de multiplicadores (ex: x500000, x1000000, x10M)
     for _, obj in pairs(workspace:GetDescendants()) do
         if obj:IsA("TextLabel") or obj:IsA("SurfaceGui") or obj:IsA("BasePart") then
             local texto = ""
@@ -91,24 +79,24 @@ local function teleportarParaFinalRampa()
         end
     end
 
-    -- Se encontrou a última faixa de multiplicador
+    -- Se achou o maior multiplicador da rampa
     if melhorBloco and melhorBloco:IsA("BasePart") then
-        if assentoCarro and assentoCarro.Parent:IsA("Model") then
-            -- Move o Modelo do Carro inteiro com você dentro
-            assentoCarro.Parent:PivotTo(melhorBloco.CFrame + Vector3.new(0, 4, 0))
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        local assento = humanoid and humanoid.SeatPart
+        
+        -- Se estiver no carro, move o modelo do carro. Se não, move o boneco.
+        if assento and assento.Parent and assento.Parent:IsA("Model") then
+            assento.Parent:PivotTo(melhorBloco.CFrame + Vector3.new(0, 4, 0))
         else
-            -- Move o personagem
-            rootPart.CFrame = melhorBloco.CFrame + Vector3.new(0, 4, 0)
+            root.CFrame = melhorBloco.CFrame + Vector3.new(0, 4, 0)
         end
     end
 end
 
--- 3. Monitorador de Slime Raro ("Arco-íris Limitado" / Asas de Anjo)
+-- 3. Verificação do Slime Raro ("Arco-íris Limitado")
 local function checarSlimeRaro()
     pcall(function()
-        -- Busca no inventário, no personagem ou em notificações da tela
         local achouRaro = false
-        
         for _, obj in pairs(LocalPlayer:GetDescendants()) do
             local nome = string.lower(obj.Name)
             if nome:find("arco-íris") or nome:find("arco iris") or nome:find("rainbow") or nome:find("divine") or nome:find("limited") then
@@ -123,7 +111,6 @@ local function checarSlimeRaro()
                Title = " SLIME RARO ENCONTRADO!",
                Content = "Você conseguiu o Slime Arco-íris Limitado (Asas de Anjo)!",
                Duration = 8,
-               Image = 4483362458,
             })
         end
     end)
@@ -144,18 +131,19 @@ local function equiparMelhorSlime()
     end)
 end
 
--- LOOP PRINCIPAL DO AUTO FARM
+-- LOOP PRINCIPAL DO AUTO FARM (Sem travas)
 task.spawn(function()
     while true do
         task.wait(_G.TempoEspera)
         if _G.AutoFarmLoop then
-            -- Passo A: Pisa na seta e aguarda montar no carro
-            entrarNoCarroPelaSeta()
+            -- Passo 1: Teleporta para a seta
+            irParaSetaInício()
+            task.wait(0.5)
             
-            -- Passo B: Teleporta o Carro + Jogador até a faixa final da rampa
-            teleportarParaFinalRampa()
+            -- Passo 2: Teleporta direto para o final da rampa
+            irParaFinalRampa()
             
-            -- Passo C: Verifica se ganhou o Slime Raro
+            -- Passo 3: Checa o slime raro
             checarSlimeRaro()
         end
     end
@@ -173,13 +161,13 @@ local function checarEstoqueLimitados()
 end
 
 -- ==========================================================
--- INTERFACE VISUAL (ABAS E BOTÕES)
+-- INTERFACE VISUAL
 -- ==========================================================
 
 local TabFarm = Window:CreateTab("Auto Farm", 4483362458)
 
 TabFarm:CreateToggle({
-   Name = "Ligar Auto Farm Infinito (Com Carro)",
+   Name = "Ligar Auto Farm Infinito",
    CurrentValue = false,
    Flag = "ToggleAutoFarm",
    Callback = function(Value)
@@ -201,10 +189,10 @@ TabFarm:CreateButton({
 
 TabFarm:CreateSlider({
    Name = "Velocidade do Ciclo (Segundos)",
-   Range = {0.8, 4},
-   Increment = 0.2,
+   Range = {0.5, 3},
+   Increment = 0.1,
    Suffix = " seg",
-   CurrentValue = 1.2,
+   CurrentValue = 1.0,
    Flag = "SliderTempo",
    Callback = function(Value)
       _G.TempoEspera = Value
