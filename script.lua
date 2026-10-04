@@ -3,8 +3,8 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
    Name = "Auto Farm | Mega Ramp",
-   LoadingTitle = "Iniciando...",
-   LoadingSubtitle = "Lógica Gumanba Decodificada",
+   LoadingTitle = "Iniciando Projeto...",
+   LoadingSubtitle = "Teleporte Instantâneo para o Final",
    Size = UDim2.fromOffset(450, 320),
    ConfigurationSaving = { Enabled = false },
    KeySystem = false
@@ -16,65 +16,64 @@ local LocalPlayer = Players.LocalPlayer
 
 -- VARIÁVEIS DE CONTROLE
 _G.AutoFarmLoop = false
-_G.TempoEspera = 1.0
+_G.TempoEspera = 0.5
+local jaNotificouRaro = false
 
--- FUNÇÃO PARA LOCALIZAR A BASE/PISTA DO JOGADOR
-local function obterMinhaBase()
-    local bases = workspace:FindFirstChild("Bases") or workspace:FindFirstChild("Plots")
+-- FUNÇÃO PARA ENCONTRAR A BASE / PLOT DO JOGADOR LOCAL
+local function obterBaseJogador()
+    local bases = workspace:FindFirstChild("Bases") or workspace:FindFirstChild("Plots") or workspace:FindFirstChild("Tycoons")
     if bases then
-        for _, base in pairs(bases:GetChildren()) do
-            if base:FindFirstChild("Owner") and tostring(base.Owner.Value) == LocalPlayer.Name then
-                return base
-            elseif base.Name == LocalPlayer.Name or base.Name:find(LocalPlayer.Name) then
-                return base
+        for _, b in pairs(bases:GetChildren()) do
+            if b:FindFirstChild("Owner") and tostring(b.Owner.Value) == LocalPlayer.Name then
+                return b
+            elseif b.Name == LocalPlayer.Name or b.Name:find(LocalPlayer.Name) then
+                return b
             end
         end
     end
     return nil
 end
 
--- LÓGICA DO AUTO FARM VIA REMOTES + TELEPORTE
-local function executarCicloFarm()
+-- FUNÇÃO DE TELEPORTE INSTANTÂNEO (SETA -> FINAL ABSOLUTO DA RAMPA)
+local function executarTeleporteInstantaneo()
     pcall(function()
         local char = LocalPlayer.Character
         if not char or not char:FindFirstChild("HumanoidRootPart") then return end
         local root = char.HumanoidRootPart
         local humanoid = char:FindFirstChildOfClass("Humanoid")
 
-        local minhaBase = obterMinhaBase()
-        if not minhaBase then return end
+        local minhaBase = obterBaseJogador()
 
-        local startPad = minhaBase:FindFirstChild("StartPad", true)
-        local endPad = minhaBase:FindFirstChild("EndPad", true) or minhaBase:FindFirstChild("Finish", true)
-
-        -- 1. Mover para o StartPad (Seta)
+        -- 1. Posiciona no quadrado branco da Seta (StartPad)
+        local startPad = minhaBase and minhaBase:FindFirstChild("StartPad", true)
         if startPad then
-            if humanoid.SeatPart and humanoid.SeatPart.Parent then
-                humanoid.SeatPart.Parent:PivotTo(startPad.CFrame + Vector3.new(0, 3, 0))
-            else
-                root.CFrame = startPad.CFrame + Vector3.new(0, 3, 0)
-            end
+            root.CFrame = startPad.CFrame + Vector3.new(0, 3, 0)
         end
 
-        task.wait(0.3)
+        task.wait(0.15)
 
-        -- 2. Disparar avisos/remotes de início caso existam no jogo
-        local events = ReplicatedStorage:FindFirstChild("Events") or ReplicatedStorage
-        for _, remote in pairs(events:GetDescendants()) do
-            if remote:IsA("RemoteEvent") then
-                local nome = remote.Name:lower()
-                if nome:find("start") or nome:find("race") or nome:find("spawn") then
-                    remote:FireServer()
+        -- 2. Localiza o ponto FINAL ABSOLUTO (EndPad / Último Multiplicador)
+        local endPad = minhaBase and (minhaBase:FindFirstChild("EndPad", true) or minhaBase:FindFirstChild("Finish", true))
+
+        -- Se não achar por nome na base, varre o mapa atrás do maior bloco final (ignora o meio x70000)
+        if not endPad then
+            local maiorVal = -1
+            for _, v in pairs(workspace:GetDescendants()) do
+                if v:IsA("BasePart") then
+                    local nome = v.Name:lower()
+                    if nome:find("endpad") or nome:find("finish") or nome:find("1000000") or nome:find("500000") then
+                        endPad = v
+                        break
+                    end
                 end
             end
         end
 
-        task.wait(0.2)
-
-        -- 3. Mover para o EndPad (Multiplicador Máximo no topo)
+        -- 3. Teleporta o veículo inteiro (ou o boneco) direto para o FINAL
         if endPad then
-            if humanoid.SeatPart and humanoid.SeatPart.Parent then
-                humanoid.SeatPart.Parent:PivotTo(endPad.CFrame + Vector3.new(0, 4, 0))
+            local assento = humanoid and humanoid.SeatPart
+            if assento and assento.Parent and assento.Parent:IsA("Model") then
+                assento.Parent:PivotTo(endPad.CFrame + Vector3.new(0, 4, 0))
             else
                 root.CFrame = endPad.CFrame + Vector3.new(0, 4, 0)
             end
@@ -82,21 +81,42 @@ local function executarCicloFarm()
     end)
 end
 
--- LOOP PRINCIPAL
+-- MONITORADOR DE SLIME RARO / RAINBOW
+local function checarSlimeRaro()
+    pcall(function()
+        for _, obj in pairs(LocalPlayer:GetDescendants()) do
+            local nome = string.lower(obj.Name)
+            if (nome:find("rainbow") or nome:find("limited") or nome:find("arco-íris")) and not jaNotificouRaro then
+                jaNotificouRaro = true
+                Rayfield:Notify({
+                   Title = "🌈 SLIME RARO ENCONTRADO!",
+                   Content = "Você obteve um Slime Arco-íris / Limitado!",
+                   Duration = 6
+                })
+                break
+            end
+        end
+    end)
+end
+
+-- LOOP PRINCIPAL DO AUTO FARM
 task.spawn(function()
     while true do
         task.wait(_G.TempoEspera)
         if _G.AutoFarmLoop then
-            executarCicloFarm()
+            executarTeleporteInstantaneo()
+            checarSlimeRaro()
         end
     end
 end)
 
--- INTERFACE VISUAL (RAYFIELD)
-local TabPrincipal = Window:CreateTab("Principal", 4483362458)
+-- ==========================================
+-- NOSSA INTERFACE VISUAL (RAYFIELD)
+-- ==========================================
+local TabFarm = Window:CreateTab("Auto Farm", 4483362458)
 
-TabPrincipal:CreateToggle({
-   Name = "Ligar Auto Farm Infinito",
+TabFarm:CreateToggle({
+   Name = "Ligar Auto Farm Infinito (Final da Rampa)",
    CurrentValue = false,
    Flag = "ToggleAutoFarm",
    Callback = function(Value)
@@ -104,44 +124,37 @@ TabPrincipal:CreateToggle({
    end,
 })
 
-TabPrincipal:CreateSlider({
+TabFarm:CreateSlider({
    Name = "Velocidade do Ciclo (Segundos)",
-   Range = {0.3, 3},
+   Range = {0.2, 2.0},
    Increment = 0.1,
    Suffix = " seg",
-   CurrentValue = 1.0,
+   CurrentValue = 0.5,
    Flag = "SliderTempo",
    Callback = function(Value)
       _G.TempoEspera = Value
    end,
 })
 
-TabPrincipal:CreateButton({
+local TabSlime = Window:CreateTab("Slimes & Pets", 4483362458)
+
+TabSlime:CreateButton({
    Name = "Equipar Melhor Slime",
    Callback = function()
       pcall(function()
-          local events = ReplicatedStorage:FindFirstChild("Events") or ReplicatedStorage
-          for _, v in pairs(events:GetDescendants()) do
-              if v:IsA("RemoteEvent") and (v.Name:lower():find("equip") or v.Name:lower():find("best")) then
-                  v:FireServer()
+          for _, v in pairs(ReplicatedStorage:GetDescendants()) do
+              if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") then
+                  local n = v.Name:lower()
+                  if n:find("equip") or n:find("best") then
+                      if v:IsA("RemoteEvent") then v:FireServer() else v:InvokeServer() end
+                  end
               end
           end
       end)
       Rayfield:Notify({
-         Title = "Sucesso!",
-         Content = "Comando de equipar os melhores slimes enviado ao servidor!",
+         Title = "Equipar Melhor",
+         Content = "Comando de equipar o melhor slime enviado!",
          Duration = 3
-      })
-   end,
-})
-
-TabPrincipal:CreateButton({
-   Name = "Testar Notificações",
-   Callback = function()
-      Rayfield:Notify({
-         Title = "Sistema Ativo",
-         Content = "Notificações e monitoramento funcionando!",
-         Duration = 4
       })
    end,
 })
