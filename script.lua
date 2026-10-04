@@ -2,9 +2,9 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "Auto Farm | Mega Ramp",
-   LoadingTitle = "Iniciando...",
-   LoadingSubtitle = "Rastreamento da Rampa Central",
+   Name = "MEGA RAMP FOR SLIME",
+   LoadingTitle = "Iniciando Sistema...",
+   LoadingSubtitle = "Auto Farm + Equip Best",
    Size = UDim2.fromOffset(450, 320),
    ConfigurationSaving = { Enabled = false },
    KeySystem = false
@@ -15,81 +15,96 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
 
 -- VARIÁVEIS DE CONTROLE
-_G.AutoFarmLoop = false
-_G.TempoEspera = 0.5
+_G.InstantLastZone = false
+_G.AutoEquipBest = false
+_G.TempoCiclo = 0.5
 
--- 1. LOCALIZAR O QUADRADO BRANCO DA SETA NA PRAÇA CENTRAL
-local function obterQuadradoSetaCentral()
-    local char = LocalPlayer.Character
-    if not char or not char:FindFirstChild("HumanoidRootPart") then return nil end
-    local root = char.HumanoidRootPart
+-- FUNÇÃO PARA ENCONTRAR O PONTO FINAL (LAST ZONE / MAIOR MULTIPLICADOR)
+local function obterZonaFinal()
+    local zonaFinal = nil
+    local maiorPosicaoY = -9999 -- Caso o final seja no ponto mais baixo/alto do mapa
 
-    local alvoSeta = nil
-    local menorDistancia = 9999
-
-    -- Procura no workspace geral pelo quadrado da seta perto das barracas
-    for _, v in pairs(workspace:GetDescendants()) do
-        if v:IsA("BasePart") then
-            local nome = v.Name:lower()
-            -- Busca por StartPad ou partes que contenham o decalque/textura da seta preta
-            if nome == "startpad" or nome:find("arrow") or nome:find("seta") then
-                local dist = (v.Position - root.Position).Magnitude
-                if dist < menorDistancia then
-                    menorDistancia = dist
-                    alvoSeta = v
-                end
-            end
-        end
-    end
-    return alvoSeta
-end
-
--- 2. LOCALIZAR O PONTO FINAL DA RAMPA (MAIOR MULTIPLICADOR)
-local function obterFinalRampaCentral()
-    local pontoFinal = nil
-
-    for _, v in pairs(workspace:GetDescendants()) do
-        if v:IsA("BasePart") then
-            local nome = v.Name:lower()
-            if nome:find("endpad") or nome:find("finish") or nome:find("1000000") or nome:find("500000") or nome:find("70000") then
-                pontoFinal = v
+    -- Procura no workspace por regiões de chegada ou partes com valores altos
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            local nome = obj.Name:lower()
+            if nome:find("end") or nome:find("finish") or nome:find("winner") or nome:find("last") or nome:find("zone") then
+                zonaFinal = obj
                 break
             end
         end
     end
 
-    return pontoFinal
+    -- Fallback: Se não achar por nome específico, procura o bloco no fim da rampa principal
+    if not zonaFinal then
+        for _, obj in pairs(workspace:GetChildren()) do
+            if obj:IsA("Model") or obj:IsA("Folder") then
+                for _, subObj in pairs(obj:GetDescendants()) do
+                    if subObj:IsA("BasePart") and (subObj.Name:lower():find("pad") or subObj.Name:lower():find("reward")) then
+                        zonaFinal = subObj
+                        break
+                    end
+                end
+            end
+        end
+    end
+
+    return zonaFinal
 end
 
--- LÓGICA DE TELEPORTE
-local function executarTeleporteCentrado()
+-- LÓGICA DO TELEPORTE INSTANTÂNEO
+local function executarTeleporte()
     pcall(function()
         local char = LocalPlayer.Character
         if not char or not char:FindFirstChild("HumanoidRootPart") then return end
         local root = char.HumanoidRootPart
         local humanoid = char:FindFirstChildOfClass("Humanoid")
 
-        local setaCentral = obterQuadradoSetaCentral()
-        local finalRampa = obterFinalRampaCentral()
-
-        -- Passo A: Move para a seta preta no quadrado branco central
-        if setaCentral then
-            if humanoid.SeatPart and humanoid.SeatPart.Parent then
-                humanoid.SeatPart.Parent:PivotTo(setaCentral.CFrame + Vector3.new(0, 3, 0))
-            else
-                root.CFrame = setaCentral.CFrame + Vector3.new(0, 3, 0)
+        -- 1. Forçar a chamada de spawn do carro se o jogador não estiver num assento
+        if not humanoid.SeatPart then
+            for _, remote in pairs(ReplicatedStorage:GetDescendants()) do
+                if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then
+                    local n = remote.Name:lower()
+                    if n:find("spawn") or n:find("car") or n:find("race") or n:find("start") then
+                        if remote:IsA("RemoteEvent") then 
+                            remote:FireServer() 
+                        else 
+                            remote:InvokeServer() 
+                        end
+                    end
+                end
             end
+            task.wait(0.2)
         end
 
-        task.wait(0.15)
-
-        -- Passo B: Teleporta direto para o final da rampa
-        if finalRampa then
-            local assento = humanoid and humanoid.SeatPart
+        -- 2. Localiza o destino final e realiza o teleporte do veículo ou do personagem
+        local destino = obterZonaFinal()
+        if destino then
+            local assento = humanoid.SeatPart
             if assento and assento.Parent and assento.Parent:IsA("Model") then
-                assento.Parent:PivotTo(finalRampa.CFrame + Vector3.new(0, 4, 0))
+                -- Move o modelo completo do veículo
+                assento.Parent:PivotTo(destino.CFrame + Vector3.new(0, 5, 0))
             else
-                root.CFrame = finalRampa.CFrame + Vector3.new(0, 4, 0)
+                -- Move o personagem
+                root.CFrame = destino.CFrame + Vector3.new(0, 5, 0)
+            end
+        end
+    end)
+end
+
+-- LÓGICA PARA EQUIPAR MELHOR SLIME
+local function executarEquipBest()
+    pcall(function()
+        for _, remote in pairs(ReplicatedStorage:GetDescendants()) do
+            if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then
+                local n = remote.Name:lower()
+                if n:find("equip") or n:find("best") or n:find("slime") then
+                    if remote:IsA("RemoteEvent") then 
+                        remote:FireServer() 
+                    else 
+                        remote:InvokeServer() 
+                    end
+                end
             end
         end
     end)
@@ -98,26 +113,40 @@ end
 -- LOOP PRINCIPAL
 task.spawn(function()
     while true do
-        task.wait(_G.TempoEspera)
-        if _G.AutoFarmLoop then
-            executarTeleporteCentrado()
+        task.wait(_G.TempoCiclo)
+        
+        if _G.AutoEquipBest then
+            executarEquipBest()
+        end
+
+        if _G.InstantLastZone then
+            executarTeleporte()
         end
     end
 end)
 
 -- INTERFACE VISUAL (RAYFIELD)
-local TabFarm = Window:CreateTab("Auto Farm", 4483362458)
+local TabPrincipal = Window:CreateTab("Auto Farm", 4483362458)
 
-TabFarm:CreateToggle({
-   Name = "Ligar Auto Farm Infinito",
+TabPrincipal:CreateToggle({
+   Name = "Instant Last Zone (Auto Farm)",
    CurrentValue = false,
-   Flag = "ToggleAutoFarm",
+   Flag = "ToggleInstantLastZone",
    Callback = function(Value)
-      _G.AutoFarmLoop = Value
+      _G.InstantLastZone = Value
    end,
 })
 
-TabFarm:CreateSlider({
+TabPrincipal:CreateToggle({
+   Name = "Auto Equip Best Slime",
+   CurrentValue = false,
+   Flag = "ToggleEquipBest",
+   Callback = function(Value)
+      _G.AutoEquipBest = Value
+   end,
+})
+
+TabPrincipal:CreateSlider({
    Name = "Velocidade do Ciclo (Segundos)",
    Range = {0.2, 2.0},
    Increment = 0.1,
@@ -125,29 +154,6 @@ TabFarm:CreateSlider({
    CurrentValue = 0.5,
    Flag = "SliderTempo",
    Callback = function(Value)
-      _G.TempoEspera = Value
-   end,
-})
-
-local TabSlime = Window:CreateTab("Slimes & Pets", 4483362458)
-
-TabSlime:CreateButton({
-   Name = "Equipar Melhor Slime",
-   Callback = function()
-      pcall(function()
-          for _, v in pairs(ReplicatedStorage:GetDescendants()) do
-              if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") then
-                  local n = v.Name:lower()
-                  if n:find("equip") or n:find("best") then
-                      if v:IsA("RemoteEvent") then v:FireServer() else v:InvokeServer() end
-                  end
-              end
-          end
-      end)
-      Rayfield:Notify({
-         Title = "Equipar Melhor",
-         Content = "Comando enviado para o servidor!",
-         Duration = 3
-      })
+      _G.TempoCiclo = Value
    end,
 })
