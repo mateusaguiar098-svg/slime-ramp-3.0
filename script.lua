@@ -4,7 +4,7 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
    Name = "Auto Farm | Mega Ramp",
    LoadingTitle = "Iniciando Script...",
-   LoadingSubtitle = "Versão Ajustada e Sem Erros",
+   LoadingSubtitle = "Baseado na lógica Gumanba",
    Size = UDim2.fromOffset(450, 320),
    ConfigurationSaving = { Enabled = false },
    KeySystem = false
@@ -17,59 +17,110 @@ local LocalPlayer = Players.LocalPlayer
 -- VARIÁVEIS DE CONTROLE
 _G.AutoFarmLoop = false
 _G.TempoEspera = 1.0
+local jaNotificouRaro = false
 
--- TELEPORTE 1: QUADRADO DA SETA (FOTO 1)
-local function teleportarParaSeta()
+-- FUNÇÃO PARA ENCONTRAR A BASE / PLOT DO JOGADOR LOCAL
+local function obterBaseDoJogador()
+    local plots = workspace:FindFirstChild("Plots") or workspace:FindFirstChild("Bases") or workspace:FindFirstChild("Tycoons")
+    if plots then
+        for _, plot in pairs(plots:GetChildren()) do
+            -- Verifica se a base pertence ao jogador atual
+            if plot:FindFirstChild("Owner") and tostring(plot.Owner.Value) == LocalPlayer.Name then
+                return plot
+            elseif plot.Name:find(LocalPlayer.Name) then
+                return plot
+            end
+        end
+    end
+    return nil
+end
+
+-- TELEPORTE 1: QUADRADO DA SETA DA SUA BASE
+local function irParaSetaBase()
     pcall(function()
         local char = LocalPlayer.Character
-        if not char then return end
-        local root = char:FindFirstChild("HumanoidRootPart")
-        if not root then return end
+        if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+        local root = char.HumanoidRootPart
 
-        -- Procura a seta exata perto da rampa
+        local minhaBase = obterBaseDoJogador()
+        
+        -- Se achou a base do jogador, busca a seta nela
+        if minhaBase then
+            local startPad = minhaBase:FindFirstChild("StartPad", true) or minhaBase:FindFirstChild("Spawn", true) or minhaBase:FindFirstChild("Arrow", true)
+            if startPad and startPad:IsA("BasePart") then
+                root.CFrame = startPad.CFrame + Vector3.new(0, 3, 0)
+                return
+            end
+        end
+
+        -- Fallback: busca peças com nome de seta no mapa geral
         for _, v in pairs(workspace:GetDescendants()) do
-            if v:IsA("BasePart") or v:IsA("Decal") or v:IsA("Texture") then
-                local nome = string.lower(v.Name)
-                local tex = (v:IsA("Texture") or v:IsA("Decal")) and string.lower(v.Texture) or ""
-                
-                -- Evita o spawn com símbolo de estrela da Foto 2
-                if not nome:find("spawn") and not tex:find("spawn") then
-                    if nome:find("arrow") or nome:find("seta") or tex:find("arrow") or tex:find("seta") then
-                        local alvo = v:IsA("BasePart") and v or v.Parent
-                        if alvo and alvo:IsA("BasePart") then
-                            root.CFrame = alvo.CFrame + Vector3.new(0, 3, 0)
-                            return
-                        end
-                    end
-                end
+            if v:IsA("BasePart") and (v.Name:lower():find("startpad") or v.Name:lower():find("seta")) then
+                root.CFrame = v.CFrame + Vector3.new(0, 3, 0)
+                return
             end
         end
     end)
 end
 
--- TELEPORTE 2: FINAL DA RAMPA (MULTIPLICADOR)
-local function teleportarParaFinal()
+-- TELEPORTE 2: FINAL DA RAMPA (CARRO + BONECO)
+local function irParaFinalRampa()
     pcall(function()
         local char = LocalPlayer.Character
-        if not char then return end
-        local root = char:FindFirstChild("HumanoidRootPart")
-        if not root then return end
+        if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+        local root = char.HumanoidRootPart
 
         local humanoid = char:FindFirstChildOfClass("Humanoid")
         local assento = humanoid and humanoid.SeatPart
 
-        for _, v in pairs(workspace:GetDescendants()) do
-            if v:IsA("BasePart") then
-                local nome = string.lower(v.Name)
-                if nome:find("finish") or nome:find("end") or nome:find("winner") or nome:find("500000") or nome:find("1000000") or nome:find("x100") then
-                    if assento and assento.Parent and assento.Parent:IsA("Model") then
-                        assento.Parent:PivotTo(v.CFrame + Vector3.new(0, 5, 0))
-                    else
-                        root.CFrame = v.CFrame + Vector3.new(0, 5, 0)
-                    end
-                    return
+        local minhaBase = obterBaseDoJogador()
+        local blocoFinal = nil
+
+        -- Procura a rampa/zona final na base do jogador
+        if minhaBase then
+            blocoFinal = minhaBase:FindFirstChild("EndPad", true) or minhaBase:FindFirstChild("Finish", true) or minhaBase:FindFirstChild("MaxMultiplier", true)
+        end
+
+        -- Fallback: busca pelo multiplicador mais alto
+        if not blocoFinal then
+            for _, v in pairs(workspace:GetDescendants()) do
+                if v:IsA("BasePart") and (v.Name:lower():find("endpad") or v.Name:lower():find("finish") or v.Name:find("1000000")) then
+                    blocoFinal = v
+                    break
                 end
             end
+        end
+
+        if blocoFinal and blocoFinal:IsA("BasePart") then
+            -- Se estiver no carro, move o veículo inteiro
+            if assento and assento.Parent and assento.Parent:IsA("Model") then
+                assento.Parent:PivotTo(blocoFinal.CFrame + Vector3.new(0, 5, 0))
+            else
+                root.CFrame = blocoFinal.CFrame + Vector3.new(0, 5, 0)
+            end
+        end
+    end)
+end
+
+-- MONITORADOR DE SLIME RARO
+local function checarSlimeRaro()
+    pcall(function()
+        local achouRaro = false
+        for _, obj in pairs(LocalPlayer:GetDescendants()) do
+            local nome = string.lower(obj.Name)
+            if nome:find("arco-íris") or nome:find("rainbow") or nome:find("limited") then
+                achouRaro = true
+                break
+            end
+        end
+
+        if achouRaro and not jaNotificouRaro then
+            jaNotificouRaro = true
+            Rayfield:Notify({
+               Title = " SLIME RARO!",
+               Content = "Você obteve o Slime Arco-íris Limitado!",
+               Duration = 8,
+            })
         end
     end)
 end
@@ -79,9 +130,10 @@ task.spawn(function()
     while true do
         task.wait(_G.TempoEspera)
         if _G.AutoFarmLoop then
-            teleportarParaSeta()
-            task.wait(0.3)
-            teleportarParaFinal()
+            irParaSetaBase()
+            task.wait(0.4)
+            irParaFinalRampa()
+            checarSlimeRaro()
         end
     end
 end)
@@ -110,34 +162,23 @@ TabFarm:CreateSlider({
    end,
 })
 
--- ABA DE SLIMES / EQUIPAR MELHOR
 local TabSlime = Window:CreateTab("Slimes & Pets", 4483362458)
 
 TabSlime:CreateButton({
    Name = "Equipar Melhor Slime",
    Callback = function()
       pcall(function()
-          -- Dispara evento remoto do jogo para equipar o melhor pet/slime
           for _, v in pairs(ReplicatedStorage:GetDescendants()) do
-              if v:IsA("RemoteEvent") and (v.Name:find("Equip") or v.Name:find("Best") or v.Name:find("Slime")) then
-                  v:FireServer()
+              if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") then
+                  if v.Name:find("Equip") or v.Name:find("Best") then
+                      if v:IsA("RemoteEvent") then v:FireServer() else v:InvokeServer() end
+                  end
               end
           end
       end)
       Rayfield:Notify({
          Title = "Equipar Melhor",
-         Content = "Comando de equipar o melhor enviado!",
-         Duration = 3
-      })
-   end,
-})
-
-TabSlime:CreateButton({
-   Name = "Checar Slime Raro / Notificação",
-   Callback = function()
-      Rayfield:Notify({
-         Title = "Sistema de Notificação",
-         Content = "Notificações ativas!",
+         Content = "Comando enviado para equipar os melhores slimes!",
          Duration = 3
       })
    end,
